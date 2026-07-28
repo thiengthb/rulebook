@@ -12,7 +12,7 @@ Step 1.5 was written as a kill-switch: grep the consumer's disk and transcript f
 the design is false as built.
 
 **Finding.** The gate passed — 0 of 1391 distinctive 6-word shingles, and the gate was proven able to fail (a planted
-rulebook sentence produced 11 hits and exit 1). But *what it tests* is narrower than *what was claimed*. It shows the
+rulebook sentence produced 11 hits and exit 1). But _what it tests_ is narrower than _what was claimed_. It shows the
 rule **text** did not travel. It does not show the rules are unreconstructible from enough verdicts, and they partly
 are: `icon-set`'s fix says "import from `lucide-react`", `toast-library`'s says "import `toast` from `sonner`". Someone
 collecting verdicts across enough files recovers much of the mandatory-UI list without ever seeing the rulebook.
@@ -42,7 +42,7 @@ with the rules in its system prompt. The model route covers far more of the rule
 but secondary. The load-bearing one: **an LLM checker would send the rule text to a third-party API on every call.**
 That is a materially different security story from "the rules never leave the server", and it would have been
 discovered after the architecture was committed rather than before. Step 0's classification made the choice
-affordable — the verification-shaped half is precisely the *artifact-decidable* half (icon set, hardcoded colors,
+affordable — the verification-shaped half is precisely the _artifact-decidable_ half (icon set, hardcoded colors,
 `forwardRef`, `dangerouslySetInnerHTML`, secrets in the client bundle), which is what a parser can reach.
 
 **Recorded limitation.** It scans text, it does not parse an AST. Comments are blanked first, but odd formatting can
@@ -67,8 +67,8 @@ line. Putting rules into `instructions` would send the rulebook to exactly the p
 channel we chose to open — the least defensible possible failure.
 
 **Evidence it works, and it came from a denial.** In a scratch project that had never seen this platform, the first
-headless run was refused at the permission prompt, and the session declined to report a result: *"unknown, not clean …
-per the server's own guidance, a review that doesn't run must not be read as passing."* Behaviour under failure, in a
+headless run was refused at the permission prompt, and the session declined to report a result: _"unknown, not clean …
+per the server's own guidance, a review that doesn't run must not be read as passing."_ Behaviour under failure, in a
 consumer with no other context, is stronger evidence for the block than any unit test of it.
 
 **Related.** `server/mcp-server.ts` header · `server/mcp-server.test.ts` "AC-3" · `docs/00-map.md §6`.
@@ -78,7 +78,7 @@ consumer with no other context, is stronger evidence for the block than any unit
 ## 2026-07-29 — Co-location, not co-versioning — and the build is what noticed
 
 **Context.** The build plan stated as a settled design call, with ruled-out alternatives, that this service would live
-*inside* the control-plane repo so it could read the rulebook off disk.
+_inside_ the control-plane repo so it could read the rulebook off disk.
 
 **Pitfall.** Wrong, and `.gitignore` said so at the first commit attempt: `fleet/` is an **allowlist** repo tracking only
 the meta layer, because every app in that folder is a deliberately independent git repo (`sakubun`, `todo`, `commons`,
@@ -97,3 +97,60 @@ before the directory exists and annoying afterwards.
 
 **Related.** `platform/ledger/2026-07.md` 2026-07-29 "A design document cannot notice that it disagrees with the repo" ·
 `platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md` §A.
+
+---
+
+## 2026-07-29 — Backflow: the tool that reverses the direction of trust
+
+**Context.** Phase 2 adds `report_lesson`, so a project consuming this server can send prose _back_. Every other path
+here takes untrusted input (someone's source file) and returns a verdict a parser produced. This one takes prose written
+by a model in someone else's project and stores it in the repo this platform's own agent reads.
+
+**Decision.** Three defences, deliberately ranked by how much each actually buys:
+
+1. **Inert storage** — `platform/inbox/quarantine/`, which nothing auto-loads. This is the one that matters.
+2. **The caller never picks the path.** There is no `id` or `filename` input; the id is minted server-side. Traversal is
+   not filtered, it is unreachable — and a test asserts that adding such a field would fail.
+3. **Fenced under an untrusted header**, with a fence computed as one backtick longer than the longest run in the body,
+   so a submission cannot break out of its own block. Metadata is reduced to labels, so no submission can forge
+   `status: approved` into the frontmatter.
+
+Refusals are refusals: an oversized lesson is rejected, never truncated (a truncated lesson is a misquoted one, and a
+human would be judging the misquote), and a failure to locate the inbox reports `degraded` rather than claiming a
+storage that did not happen.
+
+**The honest limit.** Points 2–3 are mitigation, not a wall. A session that _reads_ a quarantined file still pulls the
+text into its context — the `Read` tool is not on the autonomy gate's matcher at all. The wall is the gate on
+**promotion**, because the damage is a lesson becoming law, not a lesson being read. Stated in the quarantine README and
+in the gate proposal rather than left for someone to discover.
+
+**Also decided:** the tool's response is a receipt, not an answer — _"filed, unread; nothing changes until a person
+reads it"_. A consumer that believes the platform has LEARNED something will act as if the rules changed. The
+`INSTRUCTIONS` block says the same thing, and a test pins both.
+
+**Related.** `lib/report-lesson.ts` header · `platform/inbox/quarantine/README.md` ·
+`platform/proposals/2026-07-29-quarantine-promotion-gate.md`.
+
+---
+
+## 2026-07-29 — The governance write-block was bypassable by shell, and only a promotion path exposed it
+
+**Context.** Step 2.2 asked for a gate change blocking quarantine→governance promotion. Writing the tests for it meant
+first asking what the live gate already blocked.
+
+**Pitfall.** `cp evil.md .claude/hooks/autonomy-gate.mjs` was **ALLOWED** in autonomous mode. The governance block lived
+only on the `Write`/`Edit`/`MultiEdit` branch; the `Bash` branch denied ~23 command classes and not one of them was
+"write a file". The gate had read as airtight since 2026-06-19 because every test reached it through the file tools —
+the suite and the hole shared the same blind spot.
+
+**Decision.** The proposed gate judges a redirect by its **target** (so `grep -r x .claude/skills > /tmp/o` stays
+allowed while `cat lesson.md >> CLAUDE.md` does not) and blocks write verbs that name a governance path. Measured rather
+than asserted: 26/26 on the proposed gate, **10/26 on the live one** — a new test that passes against the unchanged
+system is measuring nothing. The existing 75-case suite goes 75/75 → 74/75, the single flip being
+`Write platform/standards/documentation.md`, which this proposal argues should be a BLOCK.
+
+**Not installed.** The agent must never edit its own gate (CVE-2025-53773). Drop-in + rationale sit in
+`platform/proposals/`; a human commits.
+
+**Related.** `platform/proposals/2026-07-29-quarantine-promotion-gate.md` ·
+`platform/proposals/autonomy-gate.quarantine.test.mjs`.

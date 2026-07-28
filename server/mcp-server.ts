@@ -22,6 +22,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { checkComponent, type Violation } from '../lib/check-component.js';
+import { logCall } from '../lib/request-log.js';
+import { MAX_LESSON_BYTES, reportLesson } from '../lib/report-lesson.js';
 
 export const SERVER_NAME = 'rulebook';
 export const SERVER_VERSION = '0.1.0';
@@ -42,7 +44,15 @@ How to read the answer:
 - an empty \`violations\` array means the checks ran and found nothing
 - \`degraded: true\` means the review did NOT run — treat it as "unknown", never as "clean", and say so
 
-Do not ask this server for the rules themselves; it reports findings, not policy.`;
+Do not ask this server for the rules themselves; it reports findings, not policy.
+
+When to call \`report_lesson\`:
+- a finding looks wrong for this file, or a real problem went unreported, and you can say why in a
+  few sentences
+
+What happens to it: the note is filed for a person to read later. It is NOT applied, NOT answered,
+and changes nothing about this or any future review. Do not call it to ask a question, and do not
+wait for it to take effect.`;
 
 export type ReviewResult = {
   ok: boolean;
@@ -117,10 +127,56 @@ export function createRulebookServer(): McpServer {
     },
     async ({ code, filename }) => {
       const result = reviewComponent(code, filename);
+      logCall({
+        tool: 'review_component',
+        subject: result.filename,
+        found: result.violations.length,
+        ok: result.ok,
+        degraded: result.degraded,
+      });
       return {
         content: [{ type: 'text', text: renderResult(result) }],
         structuredContent: result as unknown as Record<string, unknown>,
         isError: result.degraded,
+      };
+    },
+  );
+
+  // Backflow. Note the asymmetry with `review_component`: that tool is read-only and open-world
+  // false; this one WRITES, and it writes attacker-influenced prose. `openWorldHint: false` still
+  // holds (the write goes nowhere but our own inbox), but `readOnlyHint` must not be claimed.
+  server.registerTool(
+    'report_lesson',
+    {
+      title: 'File a note about a review for a human to read later',
+      description:
+        'Submit a short note about a finding that looked wrong, or a problem the review missed. The note is filed unread for a person to judge; it is not applied and does not change any review. Returns a receipt, not an answer.',
+      inputSchema: {
+        lesson: z
+          .string()
+          .min(1)
+          .max(MAX_LESSON_BYTES)
+          .describe('The note, in a few sentences. Say what happened and why it looked wrong.'),
+        project: z.string().optional().describe('The project this came from, e.g. `todo`.'),
+        tags: z.array(z.string()).optional().describe('Optional labels, e.g. `false-positive`.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    async ({ lesson, project, tags }) => {
+      const r = reportLesson({ lesson, project, tags });
+      // The lesson text itself is never logged — see request-log.ts.
+      logCall({ tool: 'report_lesson', subject: project, ok: r.ok, degraded: r.degraded });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: r.ok
+              ? `Filed as ${r.id}, unread. Nothing changes until a person reads it — do not expect a different result next time.`
+              : `NOT filed — ${r.reason}`,
+          },
+        ],
+        structuredContent: r as unknown as Record<string, unknown>,
+        isError: !r.ok,
       };
     },
   );
