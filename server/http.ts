@@ -15,6 +15,10 @@ import { createServer } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createRulebookServer, SERVER_NAME, SERVER_VERSION } from './mcp-server.js';
 
+// Turn request logging on for a real server run. Unit tests build the server directly and never
+// set this, so the suite writes no log. The check-in gate reads the file this produces.
+process.env.RULEBOOK_LOG_DIR ??= new URL('../../logs/', import.meta.url).pathname;
+
 const PORT = Number(process.env.PORT ?? 3901);
 const HOST = process.env.HOST ?? '127.0.0.1';
 
