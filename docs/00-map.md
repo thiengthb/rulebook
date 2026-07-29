@@ -53,7 +53,9 @@ first). Those leave no trace in the artifact, which is exactly why they cannot b
 | `lib/report-lesson.ts`       | **KEPT, 0 consumers.** Backflow (Phase 2): `reportLesson()` files a submitted lesson into `platform/inbox/quarantine/` — the one channel where this platform is the CONSUMER of untrusted input. Sanitises, fences, mints its own id.                            |
 | `lib/request-log.ts`         | **KEPT, 0 consumers.** One metadata-only JSON line per tool call (`logs/requests.jsonl`, gitignored, opt-in via `RULEBOOK_LOG_DIR`). Never the submitted source, never a lesson's text. Exists so the plan's check-in gate can be answered with a number.        |
 | `plugins/rulebook-frontend/` | **Option B′ (the accepted delivery path):** the same checker shipped as a Claude Code plugin hook — `hooks/check-file.mjs` runs on every UI write, offline, exit 2 on an error. `lib/` + `rules/` there are **committed build output** (`npm run build:plugin`). |
-| `scripts/build-plugin.mjs`   | Copies the compiled checker into the plugin. The only writer of `plugins/**/{lib,rules}`.                                                                                                                                                                        |
+| `scripts/build-plugin.mjs`   | Copies the compiled checker into the plugin. The only writer of `plugins/**/{lib,rules}`. **Also the release gate:** exits 1 if what ships changed while `plugin.json`'s version did not.                                                                        |
+| `scripts/artifact-sha.mjs`   | Hash of everything a consumer RUNS (`lib` + `rules` + `hooks`). Shared by the release gate and `lib/plugin-release.test.ts` so both enforce one definition of "the shipped artifact".                                                                            |
+| `scripts/usage-report.mjs`   | Reads `~/.claude/rulebook-usage.jsonl` and answers the check-in's only question — _is the hook used?_ Distinguishes "no log", "empty log" and "it ran and verified nothing".                                                                                     |
 | `scripts/leak-check.mjs`     | AC-1's falsification gate. Shingles the rule sources and intersects against a consumer's disk **and** its `~/.claude/projects` transcripts. Exit 1 on any hit.                                                                                                   |
 
 ## 4. Main flows
@@ -70,11 +72,20 @@ an unattended run the promotion path is gate-blocked.
 **Leak audit** — `node scripts/leak-check.mjs <consumer-dir>` → 6-word shingles of the rule sources, minus shingles
 that also occur in ordinary technical prose, intersected with the consumer's files and transcripts.
 
+**Release** — edit a rule → `npm run build:plugin` → it **refuses** unless `plugin.json` + `marketplace.json` carry a
+new version → commit, push → consumer runs `claude plugin update rulebook-frontend@rulebook` and restarts. A consumer
+updates by VERSION, never by commit: without the bump, `claude plugin update` reports "already at the latest version"
+and the fix is never delivered (measured 2026-07-29 — 6 commits undelivered; `decisions.md`).
+
+**Usage** — every check appends one metadata-only line to `~/.claude/rulebook-usage.jsonl` (`RULEBOOK_USAGE_LOG=off` to
+disable). Clean checks are counted too, because a gate that records only its complaints looks unused precisely when it
+is working. Read with `node scripts/usage-report.mjs`.
+
 ## 5. Run it
 
 ```bash
 npm install && npm run build && npm start   # → http://127.0.0.1:3901/mcp  (PORT / HOST override)
-npm test                                    # 95 tests
+npm test                                    # 105 tests
 node scripts/leak-check.mjs ~/projects/scratch-consumer
 ```
 

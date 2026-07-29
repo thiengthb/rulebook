@@ -5,6 +5,66 @@
 
 ---
 
+## 2026-07-29 — Six commits were built, tested, committed and pushed, and delivered to nobody: a consumer updates by VERSION, not by commit
+
+**Context.** The plugin was installed at user scope on this machine and treated as "the live path" all day. Six commits
+followed the install — including two rounds of false-positive fixes found by scanning 333 real UI files.
+
+**The pitfall.** `claude plugin update` resolves against the `version` field in `plugin.json`. `plugin.json` still said
+`0.1.0`. So the updater answered **"already at the latest version (0.1.0)"** and the installed copy went on running the
+first build. Every intuition from git was wrong here: committed, pushed, `origin/main` in sync, marketplace cache
+refreshed to `HEAD` — and still the artifact executing on every UI write was the old one.
+
+**It was not cosmetic.** Running both builds over the platform's own repos: the installed build reported **15
+error-severity violations across 7 files** that the current checker correctly passes — `hardcoded-color` on Satori and
+brand-mark files, `emoji-as-icon` on three files with a legitimate exception. Worse, the `rulebook-allow-file` directive
+documented in the README **did not exist** in the running build, so the escape hatch the docs promised silently did
+nothing.
+
+**Decision — enforce the bump, don't remember it.** `.release.json` pins the version to a sha256 of everything a
+consumer runs. `npm run build:plugin` exits 1 when that hash changes and the version does not;
+`lib/plugin-release.test.ts` fails the same case in `npm test`. Both were mutation-tested: each was shown to fail on a
+planted change before being trusted.
+
+**The near-miss worth keeping.** The first cut of the hash covered only `lib/` and `rules/` — not `hooks/`. That would
+have let a change to the hook itself (its exit contract, its filter, its logging) ship under an unchanged version: the
+exact failure being fixed, reintroduced one level down. Caught by asking what a consumer actually _runs_ rather than
+what the build _copies_.
+
+**Related.** `scripts/artifact-sha.mjs` · `scripts/build-plugin.mjs` · `lib/plugin-release.test.ts` ·
+`plugins/rulebook-frontend/README.md §Releasing`.
+
+---
+
+## 2026-07-29 — The hook counts its own clean runs, because a silent gate is indistinguishable from an unused one
+
+**Context.** The build plan's only open item is a 2026-08-12 check-in asking _is the plugin hook actually used?_ — this
+platform's named failure mode being "built, verified, never used". The hook exits 0 and prints nothing on a clean file,
+which is correct behaviour and leaves no evidence whatsoever.
+
+**The problem with the original runbook.** It said: look at git history for `.tsx` files written since 2026-07-29, and
+if any exist, conclude the hook ran. That is an inference about a hook from the presence of files it might have seen. A
+hook that was silently broken, or filtered out by its own extension test, produces exactly the same evidence as a
+working one.
+
+**Decision.** One metadata-only JSONL line per checked file — timestamp, extension, outcome, counts, rule ids — to
+`~/.claude/rulebook-usage.jsonl`, `RULEBOOK_USAGE_LOG=off` to disable. Never a path, never a line of source, never a
+network call; same rule as `lib/request-log.ts`.
+
+Two design points that carry the value:
+
+1. **`clean` is recorded.** A gate that logs only its complaints looks unused precisely when it is working best.
+2. **`load-error` / `checker-error` are their own outcomes**, not folded into "it ran". A checker that fires and
+   verifies nothing must not be readable as a quiet pass — `usage-report.mjs` calls that case out separately.
+
+Logging can never change an exit code: the write is wrapped and swallowed, and a test fires the hook with an
+unwritable log path to prove a violation still exits 2.
+
+**Related.** `plugins/rulebook-frontend/hooks/check-file.mjs` · `scripts/usage-report.mjs` ·
+`platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md §Check-in runbook Q1`.
+
+---
+
 ## 2026-07-29 — The confidentiality claim came back weaker than it went in, and that is written down here rather than at the point where it would settle an argument
 
 **Context.** The whole project exists because "don't expose the core rulebook" was a stated requirement. Phase 1's
