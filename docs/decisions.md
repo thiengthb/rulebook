@@ -154,3 +154,40 @@ system is measuring nothing. The existing 75-case suite goes 75/75 → 74/75, th
 
 **Related.** `platform/proposals/2026-07-29-quarantine-promotion-gate.md` ·
 `platform/proposals/autonomy-gate.quarantine.test.mjs`.
+
+---
+
+## 2026-07-29 — Phase 3: the kill-switch measured the rulebook, not the tool that would check it
+
+**Context.** Step 0 gated this whole project on one number: 58.9% of the rulebook is verification-shaped, above a
+pre-committed 40% floor. Phase 3's job was to ask whether the thin slice earned the expensive half.
+
+**Pitfall.** The number was right and the inference from it was not. 58.9% is a property of the **rules**;
+`review_component` is stateless, takes a single file, and calls no model. Re-classifying the same 33 verification-shaped
+statements against _that shape_: 12 (36%) decidable from the submitted file, 7 partly, and **14 (42%) needing repo
+state, host state, a rendered UI, or judgment** — "the Traefik router name is unique across the NUC", "update
+`shared-assets.md` when you extract", "push the `'use client'` boundary deep through the tree". Reachable share:
+**~21–34% of the rulebook**, not 58.9%. The plan carried the warning one level shallower ("Step 0 measured the rulebook,
+not the checker") and read it as _does the checker catch them well_ — the deeper question was whether the tool's shape
+can **see** them at all.
+
+**The generalisable lesson.** A kill-switch measurement must be taken against the **shape of the thing that will be
+built**, not against the domain it will operate on. Measuring the domain feels rigorous and pre-commits a threshold,
+which is what makes it convincing — and it can still be measuring the wrong noun.
+
+**Second finding.** The confidentiality benefit was compared against zero rather than against the alternative. Shipping
+the compiled rule data is **4.4 KB**; the RFC rejected Option B for putting ~760 KB on every disk. Those are not the
+same objection. And `check-component.ts` is **pure by invariant**, so it runs anywhere — the server exists only to keep
+those 4.4 KB off other machines.
+
+**Decision.** Phase 4 (hosting, OAuth extraction, `cloud` target) is **not authorized**. Proposed re-target **B′**: ship
+the checker as a hook through the private plugin marketplace that Step 4.3 already required for hooks — offline, free,
+and **deterministically enforced** instead of depending on a consuming model choosing to call a tool (evidence that it
+does: n=1). The supervisor accepted Option A and only the supervisor reverses it; this is a proposal.
+
+**Why switching is cheap.** Under B′ the 9 rules, `check-component` + its 33 tests, the leak gate and the quarantine all
+survive. What becomes optional is `server/http.ts` (71 lines) and the MCP wrapper. The work was not wasted; it was the
+measurement.
+
+**Related.** `platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md` §Phase 3 verdict ·
+`platform/registries/idea-queue.md` idea-0023.
