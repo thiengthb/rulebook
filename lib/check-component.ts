@@ -166,8 +166,47 @@ function jsxText(region: string): string | null {
 const HEX_COLOR = /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/;
 const FN_COLOR = /\b(?:rgba?|hsla?|oklch|oklab)\s*\(/;
 
+/**
+ * You cannot animate with Motion without importing it. Without this gate the prop names alone
+ * decide, and `initial` / `animate` / `exit` are ordinary English words that appear as data props
+ * on ordinary components — `<CheckinBox initial={{ energy, mood }} />` in `todo/app/page.tsx` was
+ * reported as a layout-thrashing animation (found 2026-07-29 by scanning a real codebase).
+ */
+const IMPORTS_MOTION = /from\s+['"](?:motion\/react|motion|framer-motion)['"]/;
+
 const MOTION_PROP_BLOCK =
   /\b(?:animate|initial|exit|whileHover|whileTap|whileInView)\s*=\s*\{\{([^}]*)\}\}/g;
+
+/**
+ * An explicit, reasoned exception: `rulebook-allow: <rule-id> — <reason>` in a comment, on the
+ * offending line or the line above.
+ *
+ * The reason must be **at least 20 characters**, mirroring the platform's own `/ui-pattern-lock`
+ * rule ("an exception goes in `allow` with a reason ≥20 chars. Never widen or weaken the check to
+ * get green"). A bare `rulebook-allow: hardcoded-color` does nothing — writing the sentence is the
+ * point, because that is where a person decides rather than silences.
+ *
+ * Needed the moment this ran on real code: a Google brand mark's `fill="#4285F4"` is fixed by
+ * brand guidelines, and a Next.js `opengraph-image` renders to PNG outside the browser, where CSS
+ * variables do not exist. Both are correct code that the rule cannot distinguish.
+ */
+const ALLOW_DIRECTIVE = /rulebook-allow:\s*([a-z-]+)\s*[—:-]\s*(.+)$/;
+
+function allowedLines(rawLines: string[]): Map<string, Set<number>> {
+  const allowed = new Map<string, Set<number>>();
+  rawLines.forEach((line, idx) => {
+    const m = ALLOW_DIRECTIVE.exec(line);
+    if (!m) return;
+    const reason = m[2]!.replace(/\s*(\*\/|-->)\s*$/, '').trim();
+    if (reason.length < 20) return; // a reason too short to be a reason
+    const set = allowed.get(m[1]!) ?? new Set<number>();
+    // The directive covers its own line (trailing comment) and the next one (comment above).
+    set.add(idx);
+    set.add(idx + 1);
+    allowed.set(m[1]!, set);
+  });
+  return allowed;
+}
 
 export function checkComponent(source: string, opts: CheckOptions = {}): Violation[] {
   const kind = kindOf(opts.filename);
@@ -178,7 +217,10 @@ export function checkComponent(source: string, opts: CheckOptions = {}): Violati
 
   const applies = (id: RuleId) => RULE_BY_ID.get(id)!.applies.includes(kind);
 
+  const allowed = allowedLines(rawLines);
+
   const push = (ruleId: RuleId, lineIdx: number, message: string, fix: string) => {
+    if (allowed.get(ruleId)?.has(lineIdx)) return;
     violations.push({
       ruleId,
       line: lineIdx + 1,
@@ -269,7 +311,13 @@ export function checkComponent(source: string, opts: CheckOptions = {}): Violati
       const hasFn = FN_COLOR.test(line);
       const looksLikeUrlFragment = /(?:href|src|url\()\s*[=(]?\s*['"][^'"]*#/.test(line);
       const isCssVarDefinition = /^\s*--[\w-]+\s*:/.test(line);
-      if ((hasHex || hasFn) && !looksLikeUrlFragment && !isCssVarDefinition) {
+      // `var(--flame, #f97316)` DOES follow the theme — the literal is only the fallback for a
+      // token that is not defined. Strip those before deciding (found 2026-07-29 in sakubun's
+      // globals.css, where every flame glow was reported).
+      const withoutVarFallbacks = line.replace(/var\(\s*--[\w-]+\s*,[^()]*\)/g, 'var(--x)');
+      const stillHasLiteral =
+        HEX_COLOR.test(withoutVarFallbacks) || FN_COLOR.test(withoutVarFallbacks);
+      if ((hasHex || hasFn) && stillHasLiteral && !looksLikeUrlFragment && !isCssVarDefinition) {
         push(
           'hardcoded-color',
           idx,
@@ -343,7 +391,7 @@ export function checkComponent(source: string, opts: CheckOptions = {}): Violati
   });
 
   /* ── animated-property: allowlist over the animated keys (multi-line aware) ──────── */
-  if (applies('animated-property')) {
+  if (applies('animated-property') && IMPORTS_MOTION.test(code)) {
     MOTION_PROP_BLOCK.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = MOTION_PROP_BLOCK.exec(code))) {

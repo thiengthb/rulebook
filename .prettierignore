@@ -1,0 +1,5 @@
+# Build output that is committed for the plugin (`npm run build:plugin`). Formatting it would make
+# every rebuild produce a spurious diff — and nobody reads it; the source is `lib/` and `rules/`.
+plugins/**/lib/
+plugins/**/rules/
+dist/

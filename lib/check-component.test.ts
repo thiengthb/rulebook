@@ -166,6 +166,65 @@ describe('hardcoded-color', () => {
   });
 });
 
+describe('the reasoned exception directive', () => {
+  // Added 2026-07-29, after scanning 333 real UI files. Two findings were correct code the rule
+  // cannot distinguish: a brand mark whose colors are fixed by someone else's guidelines, and a
+  // Next.js opengraph-image, which renders to PNG where CSS variables do not exist.
+  it('suppresses the named rule when the reason is long enough', () => {
+    const src = `export function Logo() {
+  // rulebook-allow: hardcoded-color — Google brand mark, colors fixed by brand guidelines
+  return <svg><path fill="#4285F4" d="M0 0" /></svg>;
+}
+`;
+    const found = ids(src);
+    expect(found).not.toContain('hardcoded-color');
+    // Same line, different rule: a directive is a scalpel, not an off switch. Without this
+    // assertion a suppression that silenced every rule on the line would pass unnoticed.
+    expect(found).toContain('icon-set');
+  });
+
+  it('works as a trailing comment on the offending line too', () => {
+    const src = `export function Logo() {
+  return <svg><path fill="#4285F4" /></svg>; // rulebook-allow: hardcoded-color — brand mark, fixed externally
+}
+`;
+    expect(ids(src)).not.toContain('hardcoded-color');
+  });
+
+  it('does NOTHING without a real reason — silencing must cost a sentence', () => {
+    const src = `export function Logo() {
+  // rulebook-allow: hardcoded-color — brand
+  return <svg><path fill="#4285F4" d="M0 0" /></svg>;
+}
+`;
+    expect(ids(src)).toContain('hardcoded-color');
+  });
+
+  it('suppresses only the rule it names, not the whole line', () => {
+    const src = `import { FaTrash } from 'react-icons/fa';
+export function Logo() {
+  // rulebook-allow: hardcoded-color — brand mark, colors fixed by brand guidelines
+  return <FaTrash color="#4285F4" />;
+}
+`;
+    const found = ids(src);
+    expect(found).not.toContain('hardcoded-color');
+    expect(found).toContain('icon-set');
+  });
+});
+
+describe('CSS var fallbacks are not hardcoded colors', () => {
+  it('does NOT fire on var(--token, #hex) — the token is what applies', () => {
+    const css = `.flame {\n  filter: drop-shadow(0 0 2px var(--flame2, #f97316));\n}\n`;
+    expect(ids(css, 'globals.css')).not.toContain('hardcoded-color');
+  });
+
+  it('DOES still fire on a literal sitting beside a var fallback', () => {
+    const css = `.flame {\n  color: #e5e7eb;\n  filter: drop-shadow(0 0 2px var(--flame2, #f97316));\n}\n`;
+    expect(ids(css, 'globals.css')).toContain('hardcoded-color');
+  });
+});
+
 describe('forward-ref', () => {
   it('fires when forwardRef is used', () => {
     expect(
@@ -257,6 +316,25 @@ describe('animated-property', () => {
     expect(
       ids(CLEAN.replace('animate={{ opacity: 1, scale: 1 }}', 'animate={{ x: 10, rotate: 4 }}')),
     ).not.toContain('animated-property');
+  });
+  // Found 2026-07-29 by scanning a real project (82 UI files): `initial`, `animate` and `exit` are
+  // ordinary English words. `<CheckinBox initial={{ energy, mood }} />` in a file that never
+  // imports Motion is a data prop, not an animation, and reporting it is pure noise.
+  it('does NOT fire in a file that never imports Motion — those are data props', () => {
+    const src = `export function P({ checkin }: { checkin: { energy: number } }) {
+  return <CheckinBox initial={{ energy: checkin.energy, mood: null }} />;
+}
+`;
+    expect(ids(src)).not.toContain('animated-property');
+  });
+
+  it('DOES fire on the same prop once the file imports Motion', () => {
+    const src = `import { motion } from 'motion/react';
+export function P() {
+  return <motion.div initial={{ height: 0, opacity: 1 }} />;
+}
+`;
+    expect(ids(src)).toContain('animated-property');
   });
 });
 

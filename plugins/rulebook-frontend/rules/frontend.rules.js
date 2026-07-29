@@ -19,79 +19,79 @@
  *  cannot be: it leaves no trace in the output to check.
  */
 export const FRONTEND_RULES = [
-  {
-    id: 'icon-set',
-    applies: ['tsx', 'jsx'],
-    severity: 'error',
-    label: 'icon source',
-  },
-  {
-    id: 'emoji-as-icon',
-    applies: ['tsx', 'jsx'],
-    severity: 'error',
-    label: 'icon source',
-  },
-  {
-    id: 'hardcoded-color',
-    applies: ['tsx', 'jsx', 'css'],
-    severity: 'error',
-    label: 'theming',
-  },
-  {
-    id: 'forward-ref',
-    applies: ['tsx', 'jsx', 'ts'],
-    severity: 'error',
-    label: 'react-19',
-  },
-  {
-    id: 'dangerous-html',
-    applies: ['tsx', 'jsx'],
-    severity: 'error',
-    label: 'security',
-  },
-  {
-    id: 'toast-library',
-    applies: ['tsx', 'jsx', 'ts'],
-    severity: 'error',
-    label: 'mandatory-ui',
-  },
-  {
-    id: 'client-secret',
-    applies: ['tsx', 'jsx', 'ts'],
-    severity: 'error',
-    label: 'security',
-  },
-  {
-    id: 'animated-property',
-    applies: ['tsx', 'jsx'],
-    severity: 'warn',
-    label: 'performance',
-  },
-  {
-    id: 'debug-logging',
-    applies: ['tsx', 'jsx', 'ts'],
-    severity: 'warn',
-    label: 'hygiene',
-  },
+    {
+        id: 'icon-set',
+        applies: ['tsx', 'jsx'],
+        severity: 'error',
+        label: 'icon source',
+    },
+    {
+        id: 'emoji-as-icon',
+        applies: ['tsx', 'jsx'],
+        severity: 'error',
+        label: 'icon source',
+    },
+    {
+        id: 'hardcoded-color',
+        applies: ['tsx', 'jsx', 'css'],
+        severity: 'error',
+        label: 'theming',
+    },
+    {
+        id: 'forward-ref',
+        applies: ['tsx', 'jsx', 'ts'],
+        severity: 'error',
+        label: 'react-19',
+    },
+    {
+        id: 'dangerous-html',
+        applies: ['tsx', 'jsx'],
+        severity: 'error',
+        label: 'security',
+    },
+    {
+        id: 'toast-library',
+        applies: ['tsx', 'jsx', 'ts'],
+        severity: 'error',
+        label: 'mandatory-ui',
+    },
+    {
+        id: 'client-secret',
+        applies: ['tsx', 'jsx', 'ts'],
+        severity: 'error',
+        label: 'security',
+    },
+    {
+        id: 'animated-property',
+        applies: ['tsx', 'jsx'],
+        severity: 'warn',
+        label: 'performance',
+    },
+    {
+        id: 'debug-logging',
+        applies: ['tsx', 'jsx', 'ts'],
+        severity: 'warn',
+        label: 'hygiene',
+    },
 ];
 export const RULE_BY_ID = new Map(FRONTEND_RULES.map((r) => [r.id, r]));
 /** Icon packages that are not the sanctioned one. Value = what the client is told instead. */
 export const FOREIGN_ICON_PACKAGES = [
-  'react-icons',
-  '@heroicons/react',
-  '@tabler/icons-react',
-  'phosphor-react',
-  '@phosphor-icons/react',
-  '@radix-ui/react-icons',
-  'react-feather',
-  '@fortawesome/react-fontawesome',
+    'react-icons',
+    '@heroicons/react',
+    '@tabler/icons-react',
+    'phosphor-react',
+    '@phosphor-icons/react',
+    '@radix-ui/react-icons',
+    'react-feather',
+    '@fortawesome/react-fontawesome',
 ];
 /** Toast libraries that are not the sanctioned one. */
 export const FOREIGN_TOAST_PACKAGES = [
-  'react-hot-toast',
-  'react-toastify',
-  '@/components/ui/use-toast',
-  '@/hooks/use-toast',
+    'react-hot-toast',
+    'react-toastify',
+    '@/components/ui/use-toast',
+    '@/hooks/use-toast',
 ];
 /**
  * Motion/CSS properties that are cheap to animate (compositor-only). Anything animated that is
@@ -99,24 +99,24 @@ export const FOREIGN_TOAST_PACKAGES = [
  * silently passes every property nobody thought of, which is the failure mode that matters.
  */
 export const COMPOSITOR_SAFE_ANIMATED_PROPS = new Set([
-  'opacity',
-  'x',
-  'y',
-  'z',
-  'scale',
-  'scaleX',
-  'scaleY',
-  'rotate',
-  'rotateX',
-  'rotateY',
-  'rotateZ',
-  'skew',
-  'skewX',
-  'skewY',
-  'transform',
-  'translateX',
-  'translateY',
-  'filter',
-  'transition',
+    'opacity',
+    'x',
+    'y',
+    'z',
+    'scale',
+    'scaleX',
+    'scaleY',
+    'rotate',
+    'rotateX',
+    'rotateY',
+    'rotateZ',
+    'skew',
+    'skewX',
+    'skewY',
+    'transform',
+    'translateX',
+    'translateY',
+    'filter',
+    'transition',
 ]);
 //# sourceMappingURL=frontend.rules.js.map
