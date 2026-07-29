@@ -231,3 +231,38 @@ test exercised it. The known-miss test was added until it died.
 
 **Related.** `plugins/rulebook-frontend/README.md` · `platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md`
 §Phase 5.
+
+---
+
+## 2026-07-29 — Step 5.5: contact with 333 real UI files, and what a hook has to survive
+
+**Context.** The plugin was installed at **user scope** from a local marketplace path (`claude plugin marketplace add
+/home/thien/projects/fleet/rulebook`) — no repo touched, no push, reversible with one `uninstall`. `claude plugin
+details` reports **1 PostToolUse hook, ~0 tokens added to every session**. That number is the quiet argument for B′ over
+the MCP path: a server-supplied `instructions` block is paid for in every session's system prompt, whether or not the
+tool is ever called.
+
+**The measurement that mattered.** Scanned every `.tsx/.jsx/.css` in `todo`, `sakubun`, `journal`, `yakudoku` —
+**333 files, 24 findings in 11 files**. A hook that exits 2 is only viable if that number is small, and it is. But three
+of the classes were **wrong**, and each was wrong in an instructive way:
+
+| Finding                                                                        | Verdict                                                                                                                              |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `<CheckinBox initial={{ energy, mood }} />`                                    | **False positive.** `initial`, `animate` and `exit` are ordinary English words. The file never imports Motion — gated on the import. |
+| `drop-shadow(… var(--flame2, #f97316))`                                        | **False positive.** The literal is a _fallback_; the token is what applies, so it does follow the theme.                             |
+| `fill="#4285F4"` in a Google brand mark; an `opengraph-image` rendering to PNG | **Correct code the rule cannot judge.** Brand colors are fixed by someone else, and CSS variables do not exist outside the browser.  |
+
+**Decision — a reasoned exception, not a severity downgrade.** `rulebook-allow: <rule-id> — <reason>` in a comment, on
+the line or the line above, with the **≥20-character reason floor taken from the platform's own `/ui-pattern-lock`
+rule**. A bare directive does nothing. Writing the sentence is the mechanism: it is where a person decides rather than
+silences. Weakening the rule instead would have hidden the brand-mark case _and_ the real ones.
+
+**Mutation-checked, and one mutant survived again** — "the directive suppresses ANY rule on the line, not the one it
+names" broke nothing, because no test had two different violations on one line. The brand-mark fixture now asserts that
+`icon-set` still fires while `hardcoded-color` is suppressed, and the mutant dies. Second session running where the
+surviving mutant was the _scoping_ of a check rather than the check itself.
+
+**What is left standing:** 20 findings across 333 files. They are in the app repos, and fixing or exempting them is the
+app owner's call, not the checker's.
+
+**Related.** `plugins/rulebook-frontend/README.md` · plan §Phase 5.5.

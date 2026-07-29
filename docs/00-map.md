@@ -60,7 +60,7 @@ that also occur in ordinary technical prose, intersected with the consumer's fil
 
 ```bash
 npm install && npm run build && npm start   # → http://127.0.0.1:3901/mcp  (PORT / HOST override)
-npm test                                    # 78 tests
+npm test                                    # 86 tests
 node scripts/leak-check.mjs ~/projects/scratch-consumer
 ```
 
@@ -88,13 +88,16 @@ Consumer side, the MCP path (built, kept, not the accepted one):
    violation list means the checks ran and found nothing — those two must not render alike. Unit-tested.
 4. **Every declared rule has a firing test.** A meta-test fails if a rule in `FRONTEND_RULES` has no mutation case, so
    the rule list and the suite cannot drift apart.
-5. **The shipped plugin must not drift from source.** `lib/` and `rules/` under `plugins/**` are committed build
+5. **An exception is written, never configured away.** `rulebook-allow: <rule-id> — <reason>` in a comment suppresses
+   one rule on one line, and only if the reason is ≥20 characters (the floor the platform's `/ui-pattern-lock` rule
+   sets). Weakening or widening a rule to get green is the thing this exists to prevent.
+6. **The shipped plugin must not drift from source.** `lib/` and `rules/` under `plugins/**` are committed build
    output; a rule edited without `npm run build:plugin` would leave every consumer enforcing the old rulebook silently.
    `lib/plugin-artifact.test.ts` fires the real hook as a subprocess and fails on any missing rule id.
-6. **Nothing filed by `report_lesson` is ever trusted.** The caller supplies no path (the id is minted here, so
+7. **Nothing filed by `report_lesson` is ever trusted.** The caller supplies no path (the id is minted here, so
    traversal is unreachable rather than filtered); bodies are stored fenced under an untrusted header; oversized
    submissions are refused, not truncated. The inbox is inert — promotion is a human move.
-7. **The checker stays pure.** Reading files, calling a model, or hitting the network from `check-component.ts` breaks
+8. **The checker stays pure.** Reading files, calling a model, or hitting the network from `check-component.ts` breaks
    both its testability and the confidentiality story (a model call ships the rules to a third party).
 
 ## 7. Secrets
