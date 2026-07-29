@@ -70,6 +70,25 @@ describe('icon-set', () => {
     expect(ids(gauge)).not.toContain('icon-set');
   });
 
+  // Found 2026-07-29: `yakudoku/web/components/ui/score-ring.tsx` builds
+  // `viewBox={`0 0 ${size} ${size}`}` and was reported as a hand-rolled icon. The rule's own
+  // exemption names score-ring/gauge/sparkline; the regex only matched a double-quoted literal.
+  it('does NOT fire on an svg whose viewBox is COMPUTED — that is a data drawing', () => {
+    const src = `export function Ring({ size }: { size: number }) {
+  return <svg width={size} height={size} viewBox={\`0 0 \${size} \${size}\`}><circle r="4" /></svg>;
+}
+`;
+    expect(ids(src)).not.toContain('icon-set');
+  });
+
+  it('DOES still fire on a hand-written svg with a fixed icon-sized viewBox', () => {
+    const src = `export function Trash() {
+  return <svg width="16" viewBox="0 0 24 24"><path d="M0 0" /></svg>;
+}
+`;
+    expect(ids(src)).toContain('icon-set');
+  });
+
   it('does NOT fire on a package whose name merely contains the word icon', () => {
     expect(ids(CLEAN.replace("from 'lucide-react'", "from '@/components/icons'"))).not.toContain(
       'icon-set',
@@ -111,6 +130,29 @@ describe('emoji-as-icon', () => {
 
   it('still does NOT fire on an emoji INSIDE an expression — that is code, and may be data', () => {
     expect(ids(CLEAN.replace('{label}', "{ok ? '🔥' : ''}"))).not.toContain('emoji-as-icon');
+  });
+
+  // Found 2026-07-29 in `yakudoku` and `todo`. `↔`, bare `⚙` and `™` are all
+  // Extended_Pictographic and all render as ordinary TEXT — they need VS16 to become emoji.
+  // Matching on Extended_Pictographic alone reported a heading of `Nhật ↔ Việt` as an emoji icon.
+  it('does NOT fire on typographic symbols that only LOOK pictographic', () => {
+    for (const sym of ['↔', '⚙', '™', '❤']) {
+      expect(ids(CLEAN.replace('{label}', `Nhật ${sym} Việt`)), `fired on ${sym}`).not.toContain(
+        'emoji-as-icon',
+      );
+    }
+  });
+
+  it('DOES fire on the same symbols once VS16 makes them emoji', () => {
+    for (const sym of ['⚙️', '❤️']) {
+      expect(ids(CLEAN.replace('{label}', `x ${sym} y`)), `missed ${sym}`).toContain(
+        'emoji-as-icon',
+      );
+    }
+  });
+
+  it('fires on a flag — regional indicators are not Extended_Pictographic, so a naive fix misses them', () => {
+    expect(ids(CLEAN.replace('{label}', '🇻🇳 Việt'))).toContain('emoji-as-icon');
   });
 
   // A KNOWN, DELIBERATE MISS — pinned so it is a decision rather than a surprise.

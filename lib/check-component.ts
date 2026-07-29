@@ -117,8 +117,27 @@ function stripComments(source: string): string {
   return out.join('');
 }
 
-/** Unicode emoji, excluding plain digits/`#`/`*` which carry Emoji_Presentation only with VS16. */
-const EMOJI = /\p{Extended_Pictographic}/u;
+/**
+ * An emoji **as rendered** — which is not the same as `Extended_Pictographic`.
+ *
+ * `↔` (U+2194), bare `⚙` (U+2699) and `™` (U+2122) are all Extended_Pictographic, and all three
+ * render as ordinary TEXT glyphs: they are `Emoji_Presentation=No` and need a VS16 selector to
+ * become emoji. Matching on `Extended_Pictographic` alone therefore reported `Nhật ↔ Việt` as an
+ * emoji icon (found 2026-07-29 in `yakudoku`, and it also cleared a finding in `todo`).
+ *
+ * So: emoji-by-default (`Emoji_Presentation`), or pictographic and explicitly selected with VS16.
+ * This keeps `🔥 💡 🎉` and `🗑️ ✍️ ⚙️ ❤️` firing while `↔ ⚙ ™ ❤` are left alone. The original code
+ * comment shows the author already had this distinction in mind for digits — it just was not applied
+ * to the symbol block.
+ *
+ * Written as an alternation rather than the set intersection
+ * `[\p{Extended_Pictographic}&&\p{Emoji_Presentation}]/v`, for two reasons: the `v` flag needs an
+ * ES2024 target (bumping one to satisfy a regex is the larger change), and the intersection is also
+ * **wrong** — a flag such as `🇻🇳` is built from regional indicators, which are
+ * `Emoji_Presentation=Yes` but NOT `Extended_Pictographic`, so it silently misses every flag.
+ * Verified against both, not assumed.
+ */
+const EMOJI = /\p{Extended_Pictographic}\uFE0F|\p{Emoji_Presentation}/u;
 
 /**
  * JSX text content: what sits between `>` and the next `<` on a line.
@@ -323,7 +342,12 @@ export function checkComponent(source: string, opts: CheckOptions = {}): Violati
       }
       if (
         /<svg[\s>]/.test(line) &&
-        !/aria-hidden|role\s*=\s*['"]img|viewBox="0 0 (?:100|200)/.test(line)
+        // `viewBox={...}` = the geometry is COMPUTED, which is what "an SVG that renders data"
+        // (the rule's own exemption: score-ring / gauge / sparkline) looks like in practice. The
+        // literal `0 0 100|200` case is kept for the fixed-size gauges written before this.
+        // Found 2026-07-29: `score-ring.tsx` builds `viewBox={\`0 0 ${size} ${size}\`}` and was
+        // reported as a hand-rolled icon — the exemption only matched a double-quoted literal.
+        !/aria-hidden|role\s*=\s*['"]img|viewBox\s*=\s*\{|viewBox="0 0 (?:100|200)/.test(line)
       ) {
         push(
           'icon-set',
