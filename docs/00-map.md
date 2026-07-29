@@ -6,7 +6,12 @@
 
 ## 1. Essence
 
-Serves this platform's rulebook to other projects **as verdicts, not as text**.
+Delivers this platform's frontend rules to other projects **without shipping the rulebook**.
+
+Two mechanisms were built and measured. The MCP server sends back **verdicts, never rule text**. The plugin ships the
+**compiled checker** and runs it locally as a hook. **Phase 3 chose the plugin** (2026-07-29, supervisor): the server's
+tool shape reaches only ~21–34% of the rulebook, its confidentiality edge over shipping the compiled rules is 4.4 KB,
+and an MCP tool only runs when the consuming model chooses to call it — a hook always does.
 
 A consuming project holds a ~6-line `.mcp.json` and nothing else. It submits a source file; it gets back the violations
 in that file — line, what is wrong, what to do instead. The rules that produced the verdict stay here.
@@ -21,19 +26,21 @@ first). Those leave no trace in the artifact, which is exactly why they cannot b
 
 ## 2. Kind & target
 
-`kind: node-service` · `target: local` (Phases 1–3) → `cloud` at Phase 4. No UI, no database, no user accounts.
+`kind: node-service` · `target: local` — and it stays there. Phase 3's verdict (2026-07-29) cancelled the move to `cloud`; delivery is a plugin, not a hosted service. No UI, no database, no user accounts.
 
 ## 3. Module map
 
-| Path                      | Role                                                                                                                                                                                                                               |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rules/frontend.rules.ts` | The 9 tier-2 rules **as data** — id, applicable file kinds, severity. Plus the foreign-package lists and the compositor-safe animated-property allowlist.                                                                          |
-| `lib/check-component.ts`  | `checkComponent(source, {filename}) → Violation[]`. **Pure**: no I/O, no network, no model, no deps. Blanks comments (preserving line numbers) before matching.                                                                    |
-| `server/mcp-server.ts`    | The MCP surface: `createRulebookServer()`, the `review_component` tool, and the server-supplied `INSTRUCTIONS` block. Also `reviewComponent()` / `renderResult()`, which own the degraded-vs-clean contract.                       |
-| `server/http.ts`          | Streamable HTTP entrypoint, **stateless** — a fresh server+transport per request. `/health` + `/mcp`.                                                                                                                              |
-| `lib/report-lesson.ts`    | Backflow (Phase 2): `reportLesson()` files a submitted lesson into `platform/inbox/quarantine/` — the one channel where this platform is the CONSUMER of untrusted input. Sanitises, fences, mints its own id.                     |
-| `lib/request-log.ts`      | One metadata-only JSON line per tool call (`logs/requests.jsonl`, gitignored, opt-in via `RULEBOOK_LOG_DIR`). Never the submitted source, never a lesson's text. Exists so the plan's check-in gate can be answered with a number. |
-| `scripts/leak-check.mjs`  | AC-1's falsification gate. Shingles the rule sources and intersects against a consumer's disk **and** its `~/.claude/projects` transcripts. Exit 1 on any hit.                                                                     |
+| Path                         | Role                                                                                                                                                                                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rules/frontend.rules.ts`    | The 9 tier-2 rules **as data** — id, applicable file kinds, severity. Plus the foreign-package lists and the compositor-safe animated-property allowlist.                                                                                                        |
+| `lib/check-component.ts`     | `checkComponent(source, {filename}) → Violation[]`. **Pure**: no I/O, no network, no model, no deps. Blanks comments (preserving line numbers) before matching.                                                                                                  |
+| `server/mcp-server.ts`       | The MCP surface: `createRulebookServer()`, the `review_component` tool, and the server-supplied `INSTRUCTIONS` block. Also `reviewComponent()` / `renderResult()`, which own the degraded-vs-clean contract.                                                     |
+| `server/http.ts`             | Streamable HTTP entrypoint, **stateless** — a fresh server+transport per request. `/health` + `/mcp`.                                                                                                                                                            |
+| `lib/report-lesson.ts`       | Backflow (Phase 2): `reportLesson()` files a submitted lesson into `platform/inbox/quarantine/` — the one channel where this platform is the CONSUMER of untrusted input. Sanitises, fences, mints its own id.                                                   |
+| `lib/request-log.ts`         | One metadata-only JSON line per tool call (`logs/requests.jsonl`, gitignored, opt-in via `RULEBOOK_LOG_DIR`). Never the submitted source, never a lesson's text. Exists so the plan's check-in gate can be answered with a number.                               |
+| `plugins/rulebook-frontend/` | **Option B′ (the accepted delivery path):** the same checker shipped as a Claude Code plugin hook — `hooks/check-file.mjs` runs on every UI write, offline, exit 2 on an error. `lib/` + `rules/` there are **committed build output** (`npm run build:plugin`). |
+| `scripts/build-plugin.mjs`   | Copies the compiled checker into the plugin. The only writer of `plugins/**/{lib,rules}`.                                                                                                                                                                        |
+| `scripts/leak-check.mjs`     | AC-1's falsification gate. Shingles the rule sources and intersects against a consumer's disk **and** its `~/.claude/projects` transcripts. Exit 1 on any hit.                                                                                                   |
 
 ## 4. Main flows
 
@@ -53,11 +60,18 @@ that also occur in ordinary technical prose, intersected with the consumer's fil
 
 ```bash
 npm install && npm run build && npm start   # → http://127.0.0.1:3901/mcp  (PORT / HOST override)
-npm test                                    # 69 tests
+npm test                                    # 78 tests
 node scripts/leak-check.mjs ~/projects/scratch-consumer
 ```
 
-Consumer side — the entire integration:
+Consumer side, **B′ (the accepted path)** — nothing lands in the consuming repo at all:
+
+```
+/plugin marketplace add thiengthb/rulebook
+/plugin install rulebook-frontend@rulebook
+```
+
+Consumer side, the MCP path (built, kept, not the accepted one):
 
 ```json
 { "mcpServers": { "rulebook": { "type": "http", "url": "http://127.0.0.1:3901/mcp" } } }
@@ -74,10 +88,13 @@ Consumer side — the entire integration:
    violation list means the checks ran and found nothing — those two must not render alike. Unit-tested.
 4. **Every declared rule has a firing test.** A meta-test fails if a rule in `FRONTEND_RULES` has no mutation case, so
    the rule list and the suite cannot drift apart.
-5. **Nothing filed by `report_lesson` is ever trusted.** The caller supplies no path (the id is minted here, so
+5. **The shipped plugin must not drift from source.** `lib/` and `rules/` under `plugins/**` are committed build
+   output; a rule edited without `npm run build:plugin` would leave every consumer enforcing the old rulebook silently.
+   `lib/plugin-artifact.test.ts` fires the real hook as a subprocess and fails on any missing rule id.
+6. **Nothing filed by `report_lesson` is ever trusted.** The caller supplies no path (the id is minted here, so
    traversal is unreachable rather than filtered); bodies are stored fenced under an untrusted header; oversized
    submissions are refused, not truncated. The inbox is inert — promotion is a human move.
-6. **The checker stays pure.** Reading files, calling a model, or hitting the network from `check-component.ts` breaks
+7. **The checker stays pure.** Reading files, calling a model, or hitting the network from `check-component.ts` breaks
    both its testability and the confidentiality story (a model call ships the rules to a third party).
 
 ## 7. Secrets
@@ -89,7 +106,7 @@ where lessons are filed (tests point it at a temp dir; Phase 4 will need it once
 ## 8. Further reading
 
 - `docs/decisions.md` — the why-log (append-only).
-- `platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md` — active plan; Phases 1–2 done, `checkin: 2026-08-12`.
+- `platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md` — active plan; Phases 1–3 + 5.1–5.4 done, `checkin: 2026-08-12`.
 - `platform/plans/2026-07-28-idea-0023-mcp-platform-server-proposal.md` — the accepted RFC (sources, options,
   pre-mortem, and the counter-case that is still live).
 

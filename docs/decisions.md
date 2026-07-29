@@ -191,3 +191,43 @@ measurement.
 
 **Related.** `platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md` §Phase 3 verdict ·
 `platform/registries/idea-queue.md` idea-0023.
+
+---
+
+## 2026-07-29 — B′: the checker ships as a plugin hook, and the thin slice found a real bug in minutes
+
+**Context.** The supervisor accepted the Phase 3 re-target: deliver the checker through a private plugin marketplace
+rather than a hosted MCP server.
+
+**Decision — exit 2, not a message.** The hook returns exit 2 on any `error`-severity violation, which puts stderr in
+front of the model as something it must resolve; warnings report through `additionalContext` without interrupting. The
+gradient is deliberate: a hook that shouts on every judgement call gets turned off, and then it enforces nothing. Fail
+behaviour is inherited from the server's §C — an unreadable file or a checker throw prints _"NOT checked — unknown, not
+clean"_, never silence.
+
+**Pitfall — committed build output.** The plugin is consumed by `git clone`, not `npm install`, so its JS must be
+committed. That is a silent-staleness trap: edit a rule, forget `npm run build:plugin`, and every consumer keeps
+enforcing the old rulebook with no error anywhere. `lib/plugin-artifact.test.ts` fires the real hook as a subprocess and
+fails on any source rule id missing from the shipped artifact — and was proven able to fail before being trusted.
+
+**What the slice was really worth.** Within minutes of running the checker from the hook on a hand-written file,
+`emoji-as-icon` turned out to be near-useless: the scan was **line-scoped**, so every Prettier-formatted element (`>` on
+one line, text on the next, `<` on a third — i.e. almost all real JSX) was invisible; and its text regex excluded braces,
+so `>🔥{label}<` matched nothing. **33 tests had been green over this the whole time**, because every fixture put the
+emoji alone on one line.
+
+**Two things that fixing it taught, both by failing first.**
+
+1. Blanking `{...}` globally before scanning does not work: in a `.tsx` file the entire component body sits inside `{}`,
+   so it blanks the JSX along with the expressions. Blanking must be per text-region.
+2. An arrow function's `=>` contains a `>`, so a scan for `>` … `<` opens bogus regions in the middle of attributes —
+   which is how a string inside `onClick` got reported as rendered text. Those regions have unbalanced braces, and that
+   is the signal used to reject them. The cost is one known miss (`{a && <A/>} 🔥 {b && <B/>}`), **pinned as a test** so
+   it is a decision rather than a surprise: this rule fires at `error` and exits 2, so a false positive costs more than
+   a miss.
+
+**Mutation-checked, and the first mutant survived** — removing the unbalanced-brace rejection broke nothing, because no
+test exercised it. The known-miss test was added until it died.
+
+**Related.** `plugins/rulebook-frontend/README.md` · `platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md`
+§Phase 5.
