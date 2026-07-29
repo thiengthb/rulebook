@@ -1,0 +1,17 @@
+{
+  "description": "After any write to a UI file, run the frontend checker on it. Deterministic and local: it fires whether or not the model thinks to ask, which is the whole reason this ships as a hook instead of as an MCP tool.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/check-file.mjs\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

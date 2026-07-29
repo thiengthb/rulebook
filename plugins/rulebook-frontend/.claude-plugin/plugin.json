@@ -1,0 +1,7 @@
+{
+  "name": "rulebook-frontend",
+  "description": "Checks every .tsx/.jsx/.css file you write against this platform's frontend rules, the moment you write it. Offline and deterministic: no model call, no network.",
+  "version": "0.1.0",
+  "author": { "name": "thiengthb", "email": "tranngocthien628@gmail.com" },
+  "keywords": ["lint", "frontend", "react", "tailwind", "rules"]
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "rulebook",
+  "description": "This platform's frontend rules, shipped as a deterministic checker that runs on the consumer's machine — no server, no network, no model call.",
+  "owner": {
+    "name": "thiengthb",
+    "email": "tranngocthien628@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "rulebook-frontend",
+      "description": "Checks every .tsx/.jsx/.css file you write against this platform's frontend rules, the moment you write it. Offline and deterministic: no model call, no network.",
+      "author": { "name": "thiengthb" },
+      "category": "linting",
+      "version": "0.1.0",
+      "source": "./plugins/rulebook-frontend"
+    }
+  ]
+}

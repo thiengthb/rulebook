@@ -2,7 +2,7 @@
   "name": "@thiengthb/rulebook",
   "version": "0.1.0",
   "private": true,
-  "description": "Serves the platform rulebook as VERDICTS, not text — tier-2 delivery (idea-0023).",
+  "description": "Serves the platform rulebook as VERDICTS, not text \u2014 tier-2 delivery (idea-0023).",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -15,7 +15,8 @@
     "format:check": "prettier --check .",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server/http.js",
-    "dev": "tsc -p tsconfig.build.json && node dist/server/http.js"
+    "dev": "tsc -p tsconfig.build.json && node dist/server/http.js",
+    "build:plugin": "npm run build && node scripts/build-plugin.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
