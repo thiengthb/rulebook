@@ -95,6 +95,43 @@ describe('emoji-as-icon', () => {
       'emoji-as-icon',
     );
   });
+
+  // Regression, 2026-07-29. The text-region regex excluded `{`/`}`, so ANY region holding an
+  // expression was skipped whole — the overwhelmingly common shape in real JSX. Found by running
+  // the checker from the plugin hook on a hand-written file, not by this suite.
+  it('fires on an emoji sitting NEXT TO an expression, not only on one that is alone', () => {
+    expect(ids(CLEAN.replace('{label}', '🔥{label}'))).toContain('emoji-as-icon');
+  });
+
+  it('fires on an emoji between two expressions', () => {
+    expect(ids(CLEAN.replace('{label} {endpoint}', '{label} 🚀 {endpoint}'))).toContain(
+      'emoji-as-icon',
+    );
+  });
+
+  it('still does NOT fire on an emoji INSIDE an expression — that is code, and may be data', () => {
+    expect(ids(CLEAN.replace('{label}', "{ok ? '🔥' : ''}"))).not.toContain('emoji-as-icon');
+  });
+
+  // A KNOWN, DELIBERATE MISS — pinned so it is a decision rather than a surprise.
+  //
+  // Between two conditional elements the text region starts with a stray `}` and ends with a
+  // stray `{`, which balance out. Accepting it would report this emoji correctly, and would also
+  // accept regions that begin in the middle of an attribute (`onClick={() => …}`), where a string
+  // is not rendered text at all. The rule's bias is conservative — this checker fires at
+  // `severity: error` and exits 2 in the plugin hook, so a false positive costs more than a miss.
+  // Removing the `depth < 0` rejection makes this case fire and breaks the exemption above.
+  it('does NOT fire between two conditional elements — the price of rejecting code regions', () => {
+    const src = `export function A({ a, b }: { a: boolean; b: boolean }) {
+  return (
+    <div>
+      {a && <span>x</span>} 🔥 {b && <span>y</span>}
+    </div>
+  );
+}
+`;
+    expect(ids(src)).not.toContain('emoji-as-icon');
+  });
 });
 
 describe('hardcoded-color', () => {

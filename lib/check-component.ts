@@ -120,8 +120,48 @@ function stripComments(source: string): string {
 /** Unicode emoji, excluding plain digits/`#`/`*` which carry Emoji_Presentation only with VS16. */
 const EMOJI = /\p{Extended_Pictographic}/u;
 
-/** JSX text content: what sits between `>` and the next `<` on a line. */
-const JSX_TEXT = />([^<>{}]+)</g;
+/**
+ * JSX text content: what sits between `>` and the next `<` on a line.
+ *
+ * Braces are NOT excluded from the match, only stripped afterwards (`stripExpressions`). The first
+ * version wrote `[^<>{}]+`, which silently skipped any text region containing an expression — so
+ * `>🔥{label}<` matched nothing and an emoji next to a variable went unreported. Found 2026-07-29
+ * by running the checker from the plugin hook on a hand-written file, not by a test.
+ */
+const JSX_TEXT = />([^<]*)</g;
+
+/**
+ * Reduce one candidate `>` … `<` region to its rendered TEXT, or reject it as code.
+ *
+ * Two things have to happen here, and both were learned by getting them wrong on 2026-07-29:
+ *  - `{...}` is an expression, not rendered text, so it is BLANKED (to spaces, newlines kept) —
+ *    deleting it would shift every later offset and lie about the line number.
+ *  - An arrow function's `=>` contains a `>`, so a scan for `>` … `<` opens bogus regions in the
+ *    middle of attributes. Those regions have UNBALANCED braces (a stray `}` closing the handler,
+ *    or a stray `{` opening a function body), and that is the signal used to throw them away.
+ *    Blanking braces globally instead is not an option: in a .tsx file the entire component body
+ *    sits inside `{}`, so it blanks the JSX too.
+ *
+ * Returns null when the region is not rendered text.
+ */
+function jsxText(region: string): string | null {
+  const out = region.split('');
+  let depth = 0;
+  for (let i = 0; i < region.length; i++) {
+    const c = region[i]!;
+    if (c === '{') {
+      depth++;
+      out[i] = ' ';
+    } else if (c === '}') {
+      depth--;
+      if (depth < 0) return null; // a closer with no opener — this region began inside code
+      out[i] = ' ';
+    } else if (depth > 0 && c !== '\n') {
+      out[i] = ' ';
+    }
+  }
+  return depth === 0 ? out.join('') : null;
+}
 
 const HEX_COLOR = /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/;
 const FN_COLOR = /\b(?:rgba?|hsla?|oklch|oklab)\s*\(/;
@@ -165,6 +205,38 @@ export function checkComponent(source: string, opts: CheckOptions = {}): Violati
     });
   }
 
+  /* ── emoji-as-icon: emoji in JSX TEXT, not emoji inside an expression (which is code) ─
+   *
+   * Scanned over the WHOLE source rather than line by line. A JSX text region routinely spans
+   * lines — `>` ends one line, the text sits on the next, `<` opens a third — which is how
+   * Prettier formats every non-trivial element, so a per-line scan saw almost none of them.
+   * Expressions are BLANKED, not deleted, so the emoji keeps its offset and the reported line
+   * number stays true (the same trick `stripComments` already uses).
+   */
+  if (applies('emoji-as-icon')) {
+    JSX_TEXT.lastIndex = 0;
+    const reported = new Set<number>();
+    let m: RegExpExecArray | null;
+    while ((m = JSX_TEXT.exec(code))) {
+      const region = jsxText(m[1]!);
+      if (region === null) continue;
+      const at = region.search(EMOJI);
+      if (at < 0) continue;
+      const offset = m.index + 1 + at;
+      const lineIdx = code.slice(0, offset).split('\n').length - 1;
+      if (reported.has(lineIdx)) continue;
+      reported.add(lineIdx);
+      push(
+        'emoji-as-icon',
+        lineIdx,
+        'An emoji is rendered as a UI marker in this element.',
+        'Replace it with a `lucide-react` icon component. Emoji is allowed only inside text a model emits verbatim.',
+      );
+      // The regex consumes the closing `<`; step back so an adjacent region is not skipped.
+      JSX_TEXT.lastIndex = Math.max(JSX_TEXT.lastIndex - 1, offset + 1);
+    }
+  }
+
   lines.forEach((line, idx) => {
     /* ── icon-set: an icon coming from anywhere but the sanctioned pack ─────────────── */
     if (applies('icon-set')) {
@@ -188,23 +260,6 @@ export function checkComponent(source: string, opts: CheckOptions = {}): Violati
           'A hand-written `<svg>` is used where an icon component belongs.',
           'Use a `lucide-react` icon. Inline SVG is only for rendering DATA (a gauge, a sparkline, a score ring).',
         );
-      }
-    }
-
-    /* ── emoji-as-icon: emoji in JSX TEXT, not emoji inside a string (that may be data) ─ */
-    if (applies('emoji-as-icon')) {
-      JSX_TEXT.lastIndex = 0;
-      let m: RegExpExecArray | null;
-      while ((m = JSX_TEXT.exec(line))) {
-        if (EMOJI.test(m[1]!)) {
-          push(
-            'emoji-as-icon',
-            idx,
-            'An emoji is rendered as a UI marker in this element.',
-            'Replace it with a `lucide-react` icon component. Emoji is allowed only inside text a model emits verbatim.',
-          );
-          break;
-        }
       }
     }
 
