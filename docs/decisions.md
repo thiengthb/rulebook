@@ -295,3 +295,32 @@ flame's colour encodes the streak length, so it is data, not chrome. The honest 
 committed edit is not a running one.
 
 **Related.** `plugins/rulebook-frontend/README.md` §"When the rule is wrong" · sakubun `84ad590`.
+
+---
+
+## 2026-07-29 — Keeping 998 unused lines on purpose, with a trigger that can fire
+
+**Context.** The Phase 3 re-target left the MCP path (`server/**`, `lib/report-lesson.ts`, `lib/request-log.ts` — 998
+lines, 36 tests) with **zero consumers**, in a repo that is now public. I had built it the same morning, which is a
+reason to distrust my own instinct to keep it, not a reason to keep it.
+
+**Decision — keep (Option A), and make the keeping falsifiable.** Not because deleting felt wasteful: because the code
+is finished, pinned by 36 tests that run in under a second, and therefore costs ~0 per week until someone changes the
+checker's interface. And it is the only mechanism that could reach a machine that cannot install a plugin — a teammate
+session, a CI job — which Phase 3 never argued against; that verdict was about hosting economics.
+
+**Why the recommendation needed a defence at all.** "Keep everything, change nothing" is also exactly what sunk cost
+recommends, so the option cannot be justified by its own comfort. Three retire-triggers were written into the plan's
+check-in runbook so the decision is revisitable by evidence rather than by mood: the interface changes and `server/**`
+needs edits (it has stopped being free) · the 2026-08-12 check-in finds the **hook** unused too (then the whole feature
+is the question) · a second month at zero consumers **and** zero quarantine submissions.
+
+**Rejected: "decide at the 2026-08-12 check-in".** That is how the auto-pilot survived three sessions past its
+usefulness. The check-in already carries one question; bolting a second on means both get answered in a hurry.
+
+**The cost paid instead of deletion is documentation, and it is now paid:** `docs/00-map.md` opens with which path is
+live, the four module-map rows are marked `KEPT, 0 consumers`, and the plugin README says plainly that the plugin is the
+supported route. An unused mechanism that a reader mistakes for the supported one is worse than either keeping or
+deleting it.
+
+**Related.** `platform/proposals/2026-07-29-mcp-path-keep-or-retire.md` · plan §Check-in runbook.

@@ -28,6 +28,10 @@ only when the model decides to call it, and it needs hosting, auth and uptime. T
 thinks to ask, works on a plane, and costs nothing to operate. The trade is 4.4 KB of rule data sitting in
 `plugins/rulebook-frontend/rules/` on your machine.
 
+**This plugin is the supported route.** The MCP server is still in the repo and still passes its tests, but it has zero
+consumers and is kept only as an option for a machine that cannot install a plugin. It has **no authentication of any
+kind** and must never be exposed off-machine. If you are setting something up, set up this plugin.
+
 Full reasoning, with the numbers: `platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md` §Phase 3 verdict.
 
 ## When the rule is wrong

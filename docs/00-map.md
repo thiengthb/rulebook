@@ -13,8 +13,22 @@ Two mechanisms were built and measured. The MCP server sends back **verdicts, ne
 tool shape reaches only ~21–34% of the rulebook, its confidentiality edge over shipping the compiled rules is 4.4 KB,
 and an MCP tool only runs when the consuming model chooses to call it — a hook always does.
 
-A consuming project holds a ~6-line `.mcp.json` and nothing else. It submits a source file; it gets back the violations
-in that file — line, what is wrong, what to do instead. The rules that produced the verdict stay here.
+> ### ⚠ Which path is LIVE — read this before setting anything up
+>
+> **The plugin is the live path.** `plugins/rulebook-frontend` is installed and in use; a consumer needs two lines
+> (`/plugin marketplace add thiengthb/rulebook`, `/plugin install rulebook-frontend@rulebook`) and nothing in their repo.
+>
+> **The MCP server (`server/**`, `lib/report-lesson.ts`, `lib/request-log.ts` — 998 lines) is kept DELIBERATELY, and has
+> zero consumers.** Do not set it up expecting it to be the supported route. It is retained because it is finished,
+> pinned by 36 fast tests, costs ~0 per week, and is the only mechanism that could reach a machine that cannot install a
+> plugin (a teammate session, a CI job). Decided 2026-07-29 — `platform/proposals/2026-07-29-mcp-path-keep-or-retire.md`
+> Option A, **with a falsifiable retire-trigger** recorded in the build plan's check-in runbook. It is a kept option, not
+> a live product; if any trigger fires, it goes.
+>
+> **Never expose the MCP server off-machine** — it has no auth of any kind.
+
+On the MCP path, a consuming project holds a ~6-line `.mcp.json` and nothing else. It submits a source file; it gets back
+the violations in that file — line, what is wrong, what to do instead. The rules that produced the verdict stay here.
 
 The design rests on one falsifiable line, measured before any code was written (`rule-classify.mjs`, 58.9% of 515 rule
 statements, CI ≈ 46–72%):
@@ -34,10 +48,10 @@ first). Those leave no trace in the artifact, which is exactly why they cannot b
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rules/frontend.rules.ts`    | The 9 tier-2 rules **as data** — id, applicable file kinds, severity. Plus the foreign-package lists and the compositor-safe animated-property allowlist.                                                                                                        |
 | `lib/check-component.ts`     | `checkComponent(source, {filename}) → Violation[]`. **Pure**: no I/O, no network, no model, no deps. Blanks comments (preserving line numbers) before matching.                                                                                                  |
-| `server/mcp-server.ts`       | The MCP surface: `createRulebookServer()`, the `review_component` tool, and the server-supplied `INSTRUCTIONS` block. Also `reviewComponent()` / `renderResult()`, which own the degraded-vs-clean contract.                                                     |
-| `server/http.ts`             | Streamable HTTP entrypoint, **stateless** — a fresh server+transport per request. `/health` + `/mcp`.                                                                                                                                                            |
-| `lib/report-lesson.ts`       | Backflow (Phase 2): `reportLesson()` files a submitted lesson into `platform/inbox/quarantine/` — the one channel where this platform is the CONSUMER of untrusted input. Sanitises, fences, mints its own id.                                                   |
-| `lib/request-log.ts`         | One metadata-only JSON line per tool call (`logs/requests.jsonl`, gitignored, opt-in via `RULEBOOK_LOG_DIR`). Never the submitted source, never a lesson's text. Exists so the plan's check-in gate can be answered with a number.                               |
+| `server/mcp-server.ts`       | **KEPT, 0 consumers.** The MCP surface: `createRulebookServer()`, the `review_component` tool, and the server-supplied `INSTRUCTIONS` block. Also `reviewComponent()` / `renderResult()`, which own the degraded-vs-clean contract.                              |
+| `server/http.ts`             | **KEPT, 0 consumers.** Streamable HTTP entrypoint, **stateless** — a fresh server+transport per request. `/health` + `/mcp`.                                                                                                                                     |
+| `lib/report-lesson.ts`       | **KEPT, 0 consumers.** Backflow (Phase 2): `reportLesson()` files a submitted lesson into `platform/inbox/quarantine/` — the one channel where this platform is the CONSUMER of untrusted input. Sanitises, fences, mints its own id.                            |
+| `lib/request-log.ts`         | **KEPT, 0 consumers.** One metadata-only JSON line per tool call (`logs/requests.jsonl`, gitignored, opt-in via `RULEBOOK_LOG_DIR`). Never the submitted source, never a lesson's text. Exists so the plan's check-in gate can be answered with a number.        |
 | `plugins/rulebook-frontend/` | **Option B′ (the accepted delivery path):** the same checker shipped as a Claude Code plugin hook — `hooks/check-file.mjs` runs on every UI write, offline, exit 2 on an error. `lib/` + `rules/` there are **committed build output** (`npm run build:plugin`). |
 | `scripts/build-plugin.mjs`   | Copies the compiled checker into the plugin. The only writer of `plugins/**/{lib,rules}`.                                                                                                                                                                        |
 | `scripts/leak-check.mjs`     | AC-1's falsification gate. Shingles the rule sources and intersects against a consumer's disk **and** its `~/.claude/projects` transcripts. Exit 1 on any hit.                                                                                                   |
