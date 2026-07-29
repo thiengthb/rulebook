@@ -266,3 +266,32 @@ surviving mutant was the _scoping_ of a check rather than the check itself.
 app owner's call, not the checker's.
 
 **Related.** `plugins/rulebook-frontend/README.md` · plan §Phase 5.5.
+
+---
+
+## 2026-07-29 — Applied to a real repo: what the exception mechanism had to grow, and what was not an exception at all
+
+**Context.** The 14 `hardcoded-color` findings in `sakubun` were worked through one by one. They split three ways, and
+the split is the useful part — a checker's findings are not one kind of thing.
+
+**1. Two files were exceptions in their entirety, not on a line.** A Next.js `opengraph-image` renders to PNG through
+Satori, where CSS variables do not exist at all; the Google "G" is a brand mark whose colors are fixed by someone else's
+guidelines (the file already said so, in prose, in a doc comment the checker cannot read). Eight of the fourteen
+findings were those two files, and annotating them line by line meant six comments repeating one sentence. Hence
+`rulebook-allow-file:` — a **different token** from the line directive, valid only in the first 10 lines, with the same
+20-character reason floor. Different token on purpose: file scope must be typed deliberately, never drifted into.
+
+**2. Six were not exceptions — they were drift.** The remaining literals sat in `streak-flame.tsx` and
+`streak-celebration.tsx`, while `lib/streak-tiers.ts` opens by saying the components "read from here so the ramp stays
+in one place". The checker had found the exact places where the file's own stated convention had leaked. Consolidating
+them (values unchanged, nothing restyled) is the fix the module asks for.
+
+**Stated plainly, because it would be easy to oversell:** moving a literal from `.tsx` to `.ts` also moves it out of the
+rule's scope (`applies: ['tsx','jsx','css']`). Those colours still do not follow light/dark — and they should not. The
+flame's colour encodes the streak length, so it is data, not chrome. The honest claim is _centralised_, not _themed_.
+
+**Verified as an end state, not as a green build.** `tsc` clean, `eslint` clean, `next build` clean, the checker at
+**0 findings across 166 UI files** — and then the container rebuilt and confirmed `healthy` + HTTP 200, because a
+committed edit is not a running one.
+
+**Related.** `plugins/rulebook-frontend/README.md` §"When the rule is wrong" · sakubun `84ad590`.

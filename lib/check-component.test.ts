@@ -213,6 +213,55 @@ export function Logo() {
   });
 });
 
+describe('the whole-file exception', () => {
+  const OG = (header: string) => `${header}
+export const contentType = 'image/png';
+const BRAND = '#CA653C';
+const INK = '#1C1917';
+export default function Image() {
+  return <div style={{ background: PAPER, color: INK }} />;
+}
+`;
+
+  it('suppresses the rule across the whole file, not just two lines', () => {
+    const src = OG(
+      '// rulebook-allow-file: hardcoded-color — renders to PNG via Satori, where CSS variables do not exist',
+    );
+    expect(ids(src)).not.toContain('hardcoded-color');
+  });
+
+  it('needs the same 20-character reason floor', () => {
+    expect(ids(OG('// rulebook-allow-file: hardcoded-color — png'))).toContain('hardcoded-color');
+  });
+
+  it('is ignored below the header — file scope must be declared up front', () => {
+    const src = `const A = '#111111';
+const B = '#222222';
+const C = '#333333';
+const D = '#444444';
+const E = '#555555';
+const F = '#666666';
+const G = '#777777';
+const H = '#888888';
+const I = '#999999';
+const J = '#aaaaaa';
+// rulebook-allow-file: hardcoded-color — declared too late to count, this is line eleven
+const K = '#bbbbbb';
+`;
+    expect(ids(src)).toContain('hardcoded-color');
+  });
+
+  it('a LINE directive never widens into file scope', () => {
+    const src = `// rulebook-allow: hardcoded-color — only this line and the next, never the file
+const A = '#111111';
+const B = '#222222';
+const C = '#333333';
+`;
+    // A (line 2) is covered, C (line 4) is not.
+    expect(ids(src)).toContain('hardcoded-color');
+  });
+});
+
 describe('CSS var fallbacks are not hardcoded colors', () => {
   it('does NOT fire on var(--token, #hex) — the token is what applies', () => {
     const css = `.flame {\n  filter: drop-shadow(0 0 2px var(--flame2, #f97316));\n}\n`;

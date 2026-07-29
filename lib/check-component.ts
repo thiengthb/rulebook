@@ -192,13 +192,41 @@ const MOTION_PROP_BLOCK =
  */
 const ALLOW_DIRECTIVE = /rulebook-allow:\s*([a-z-]+)\s*[—:-]\s*(.+)$/;
 
+/**
+ * Whole-file exception: `rulebook-allow-file: <rule-id> — <reason>`, valid only in the first 10
+ * lines. A DIFFERENT token on purpose — file scope must be typed deliberately, never reached by a
+ * line directive drifting upward.
+ *
+ * Added when the first real repo produced two files that are exceptions in their entirety, not on
+ * a line: a Google brand mark (four `fill=` across four `<path>`s, colors fixed by someone else's
+ * guidelines) and a Next.js `opengraph-image`, which renders to PNG through Satori, where CSS
+ * variables do not exist at all. Eight of the fourteen findings in that repo were these two files,
+ * and annotating them line by line would have meant six comments saying the same sentence.
+ */
+const ALLOW_FILE_DIRECTIVE = /rulebook-allow-file:\s*([a-z-]+)\s*[—:-]\s*(.+)$/;
+const ALLOW_FILE_HEADER_LINES = 10;
+
+/** A reason too short to be a reason does not suppress anything. */
+function reasonOf(raw: string): string {
+  return raw.replace(/\s*(\*\/|-->)\s*$/, '').trim();
+}
+
+/** Rules exempted for the WHOLE file by a header directive. */
+function allowedFileWide(rawLines: string[]): Set<string> {
+  const allowed = new Set<string>();
+  rawLines.slice(0, ALLOW_FILE_HEADER_LINES).forEach((line) => {
+    const m = ALLOW_FILE_DIRECTIVE.exec(line);
+    if (m && reasonOf(m[2]!).length >= 20) allowed.add(m[1]!);
+  });
+  return allowed;
+}
+
 function allowedLines(rawLines: string[]): Map<string, Set<number>> {
   const allowed = new Map<string, Set<number>>();
   rawLines.forEach((line, idx) => {
     const m = ALLOW_DIRECTIVE.exec(line);
     if (!m) return;
-    const reason = m[2]!.replace(/\s*(\*\/|-->)\s*$/, '').trim();
-    if (reason.length < 20) return; // a reason too short to be a reason
+    if (reasonOf(m[2]!).length < 20) return; // a reason too short to be a reason
     const set = allowed.get(m[1]!) ?? new Set<number>();
     // The directive covers its own line (trailing comment) and the next one (comment above).
     set.add(idx);
@@ -218,9 +246,10 @@ export function checkComponent(source: string, opts: CheckOptions = {}): Violati
   const applies = (id: RuleId) => RULE_BY_ID.get(id)!.applies.includes(kind);
 
   const allowed = allowedLines(rawLines);
+  const allowedFile = allowedFileWide(rawLines);
 
   const push = (ruleId: RuleId, lineIdx: number, message: string, fix: string) => {
-    if (allowed.get(ruleId)?.has(lineIdx)) return;
+    if (allowedFile.has(ruleId) || allowed.get(ruleId)?.has(lineIdx)) return;
     violations.push({
       ruleId,
       line: lineIdx + 1,

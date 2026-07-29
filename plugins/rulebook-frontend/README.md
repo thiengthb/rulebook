@@ -30,6 +30,25 @@ thinks to ask, works on a plane, and costs nothing to operate. The trade is 4.4 
 
 Full reasoning, with the numbers: `platform/plans/2026-07-29-idea-0023-mcp-platform-server-build.md` §Phase 3 verdict.
 
+## When the rule is wrong
+
+Some code is correct and the checker cannot tell. Say so in a comment, with a reason of at least 20 characters — a bare
+directive does nothing, because writing the sentence is where a person decides rather than silences:
+
+```tsx
+// rulebook-allow: hardcoded-color — Google brand mark, colors fixed by brand guidelines
+<path fill="#4285F4" />
+```
+
+It covers that line and the next, and only the rule it names. When the WHOLE file is the exception, declare it in the
+first 10 lines with a different, deliberate directive:
+
+```tsx
+// rulebook-allow-file: hardcoded-color — rendered to PNG by Satori, where CSS variables do not exist
+```
+
+Never widen or weaken a rule to get green — that is what these are for.
+
 ## For maintainers
 
 `lib/` and `rules/` here are **build output that is committed** — the plugin is consumed by `git clone`, not by
