@@ -74,7 +74,7 @@ that also occur in ordinary technical prose, intersected with the consumer's fil
 
 ```bash
 npm install && npm run build && npm start   # → http://127.0.0.1:3901/mcp  (PORT / HOST override)
-npm test                                    # 90 tests
+npm test                                    # 95 tests
 node scripts/leak-check.mjs ~/projects/scratch-consumer
 ```
 

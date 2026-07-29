@@ -324,3 +324,43 @@ supported route. An unused mechanism that a reader mistakes for the supported on
 deleting it.
 
 **Related.** `platform/proposals/2026-07-29-mcp-path-keep-or-retire.md` · plan §Check-in runbook.
+
+---
+
+## 2026-07-29 — Step 5.7: half the remaining findings were the checker's fault, and one was nobody's
+
+**Context.** The last 6 findings sat in `todo` (2) and `yakudoku` (4). Working through them turned out to be a
+checker-accuracy pass, not a cleanup pass — the same shape as step 5.5, one repo later.
+
+**Three were false positives in two classes, both fixed in the checker rather than in the apps.**
+
+1. **`Extended_Pictographic` is not "an emoji".** `↔` (U+2194), bare `⚙` (U+2699) and `™` (U+2122) all carry that
+   property and all render as ordinary **text** glyphs — they are `Emoji_Presentation=No` and need a VS16 selector to
+   become emoji. So a heading reading `Luyện dịch Nhật ↔ Việt` was reported as an emoji icon. The predicate is now
+   presentation-aware: emoji-by-default, **or** pictographic followed by VS16.
+   **Written as an alternation, not as the set intersection** `[\p{Extended_Pictographic}&&\p{Emoji_Presentation}]/v` —
+   partly because `v` needs an ES2024 target, but mainly because the intersection is **wrong**: a flag like `🇻🇳` is built
+   from regional indicators, which are `Emoji_Presentation=Yes` but **not** `Extended_Pictographic`, so it silently
+   misses every flag. Both were run against the same 20 characters before choosing.
+2. **The data-SVG exemption only matched a double-quoted literal.** The rule's own text exempts "SVG that renders data —
+   score-ring/gauge/sparkline", but the regex read `viewBox="0 0 (100|200)`, so `score-ring.tsx` building
+   `viewBox={`0 0 ${size} ${size}`}` was reported as a hand-rolled icon. A **computed** viewBox is now the signal: if the
+   geometry is parameterised, the drawing is data.
+
+**Two were real** — `💡 {feedback}` and `✍️ Sắc thái:` in `yakudoku` were emoji doing an icon's job. Replaced with
+`LightbulbIcon` / `PenLineIcon`, and the icon names were **verified to exist** in the installed `lucide-react@1.23` type
+declarations rather than assumed from the naming convention.
+
+**One was nobody's fault, and got a written exception instead of an edit.** `Đang ở mức kỷ lục! 🔥` — the rule forbids
+emoji as an _icon-marker_, and a decorative emoji at the end of a sentence of copy is not one. Deleting working UI copy
+to make a rule green would be the inverse of the rule's purpose, so it carries a `rulebook-allow` with that reason.
+**A directive placement trap found while doing it:** the reason was first written as a two-line comment, which put the
+directive two lines above the violation — and it covers only its own line and the next, so it silently did nothing. The
+rescan caught it. A suppression that quietly fails to suppress is worse than one that errors.
+
+**Honest limit on the verification.** `yakudoku` and `todo` have **no `node_modules` on this machine**, so neither edit
+was type-checked or linted. What was actually run: the checker (0 findings across all 333 UI files in 4 apps), Prettier,
+a TSX **parse** via the compiler API (syntax only), and an existence check of the two icon names against a sibling
+repo's installed lucide. `next build` was not run for those two.
+
+**Related.** `lib/check-component.ts` §EMOJI · plan §5.7 · [[2026-07-29 — Applied to a real repo]].
