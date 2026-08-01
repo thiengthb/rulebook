@@ -25,9 +25,16 @@
  */
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { artifactSha, COPIED_FILES, PLUGIN_DIR } from './artifact-sha.mjs';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+/**
+ * `fileURLToPath`, never `.pathname`. On Windows a file URL's `pathname` is `/C:/project/...` — with a leading
+ * slash — so `join(ROOT, x)` produced `C:\C:\project\...` and the build died with ENOENT on mkdir. Measured
+ * 2026-08-01: this script had **never been runnable on the Windows box**, which is why the committed bundle
+ * there was whatever the other machine last produced.
+ */
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PLUGIN = PLUGIN_DIR;
 const RELEASE = join(PLUGIN, '.release.json');
 

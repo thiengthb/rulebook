@@ -24,11 +24,15 @@
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, resolve, basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const consumerDir = resolve(args[0] ?? '.');
 const N = Number(args[args.indexOf('--shingle') + 1]) || 6;
-const REPO = resolve(new URL('../..', import.meta.url).pathname);
+// `fileURLToPath`, never `.pathname`: on Windows the latter is `/C:/…`, and `resolve` on that yields a path
+// under the CURRENT drive root, so the rule sources were looked for in the wrong place. This is the gate that
+// proves rule text has not leaked — a leak check that cannot find the rules would PASS by finding nothing.
+const REPO = fileURLToPath(new URL('../..', import.meta.url));
 
 /** The rule text the server reads. If it leaks, it leaks from here. */
 const RULE_SOURCES = [

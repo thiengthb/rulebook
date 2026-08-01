@@ -1,0 +1,27 @@
+# Line endings are normalized to LF on every machine. This is load-bearing here, not cosmetic — three
+# separate things in this repo were broken by a CRLF checkout, all of them silently, all measured on the
+# Windows box on 2026-08-01:
+#
+#   1. THE CHECKER'S VERDICT DEPENDED ON THE CHECKOUT. `checkComponent` splits on `\n`, so every line kept a
+#      trailing `\r`, and the `$`-anchored `rulebook-allow` / `rulebook-allow-file:` directives stopped
+#      matching. The same `google-signin-button.tsx` produced **4 violations read as CRLF and 0 read as LF**.
+#      The hook exits 2 on an error, so a developer here was blocked on files whose exceptions had been
+#      argued IN WRITING — a Satori-rendered opengraph-image where CSS variables do not exist, and a brand
+#      mark whose colours belong to someone else. Across all four apps: 11 false findings in 5 files, against
+#      the 0-of-333 that the Linux box correctly measured.
+#   2. THE RELEASE GATE CRIED WOLF. `artifactSha` hashed raw bytes, so an identical artifact hashed
+#      differently per machine: `npm run build:plugin` demanded a version bump for a byte-for-byte
+#      reproduction (delta 0). A gate that always fires teaches people to bump the version to silence it,
+#      which is precisely how a REAL change ships unversioned — the failure of 2026-07-29 that gate exists
+#      to prevent.
+#   3. `prettier --check` REPORTED EVERY FILE AS UNFORMATTED. `.prettierrc` sets `endOfLine: "lf"`, and the
+#      formatted output was byte-identical to what was on disk once `\r` was ignored (same md5). A false red
+#      across a whole repo invites `--write`, and that is a destructive fix for a problem that is not there.
+#
+# Both (1) and (2) also carry a defence-in-depth normalisation in the code, because a file can reach the
+# checker from somewhere other than a git checkout. This file removes the cause; those handle the rest.
+#
+# Precedent: `commons/.gitattributes`, added 2026-07-29 for the same mechanism reaching a different artifact
+# (`shadcn build` baking `\r\n` into embedded source strings — 11 of 15 items affected).
+
+* text=auto eol=lf

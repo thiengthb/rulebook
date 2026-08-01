@@ -257,6 +257,25 @@ function allowedLines(rawLines: string[]): Map<string, Set<number>> {
 
 export function checkComponent(source: string, opts: CheckOptions = {}): Violation[] {
   const kind = kindOf(opts.filename);
+  /**
+   * Line endings are normalised FIRST, before anything is split or matched.
+   *
+   * MEASURED 2026-08-01, on the Windows box, against the real `google-signin-button.tsx`: the identical file
+   * produced **4 violations read as CRLF and 0 read as LF**. Splitting on `\n` leaves a trailing `\r` on every
+   * line, and the exception directives are matched with `$`-anchored patterns, so a reasoned
+   * `rulebook-allow-file:` that works on Linux is silently ignored on Windows.
+   *
+   * That is the worst possible direction for this checker. The hook exits 2 on an error, so a developer on a
+   * CRLF checkout would be blocked on files that were argued through IN WRITING — a Satori-rendered
+   * `opengraph-image` where CSS variables do not exist, and the Google "G", whose colours are fixed by someone
+   * else's brand guidelines. A gate that overrules its own written exceptions is a gate people switch off,
+   * which costs more than the rule was ever worth.
+   *
+   * `\r` only ever sits at the end of a line, so line numbers are unchanged and no column shifts. Same
+   * principle as `scripts/artifact-sha.mjs`: a verdict must be a property of the CONTENT, never of the
+   * checkout that produced it.
+   */
+  source = source.replace(/\r\n/g, '\n');
   const code = stripComments(source);
   const rawLines = source.split('\n');
   const lines = code.split('\n');

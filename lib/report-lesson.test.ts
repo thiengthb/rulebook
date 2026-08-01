@@ -12,7 +12,7 @@
 
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, isAbsolute } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   MAX_LESSON_BYTES,
@@ -33,6 +33,19 @@ afterEach(() => {
 
 const META = { id: '120000-abc123', date: '2026-07-29', receivedAt: '2026-07-29T12:00:00.000Z' };
 
+/**
+ * The invariant these tests actually care about is CONTAINMENT: the written file must sit inside the inbox.
+ * The first version asserted `r.path.startsWith(dir + '/')`, which is a claim about the SEPARATOR — so on
+ * Windows, where `join` yields `\`, the traversal case failed while the guard it tests was working perfectly.
+ * A security test that goes red for a cosmetic reason is worse than none: it trains the reader to dismiss a
+ * failure in the one suite that must never be dismissed. Measured 2026-08-01 on the Windows box, where it had
+ * been failing since the file was written (1 failed / 13 passed, unrelated to any change that day).
+ */
+const isInside = (parent: string, p: string) => {
+  const rel = relative(parent, p);
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+};
+
 describe('the lesson is stored, and it is stored inert', () => {
   it('writes one file into the inbox and reports where', () => {
     const r = reportLesson(
@@ -41,7 +54,7 @@ describe('the lesson is stored, and it is stored inert', () => {
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.path.startsWith(dir)).toBe(true);
+    expect(isInside(dir, r.path)).toBe(true);
     expect(readdirSync(dir)).toHaveLength(1);
     expect(readFileSync(r.path, 'utf8')).toContain('The icon rule fires on lucide aliases.');
   });
@@ -72,7 +85,7 @@ describe('the caller cannot choose the path', () => {
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.path.startsWith(dir + '/')).toBe(true);
+    expect(isInside(dir, r.path)).toBe(true);
     expect(readdirSync(dir)).toHaveLength(1);
   });
 
